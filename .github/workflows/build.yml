@@ -23,7 +23,7 @@ jobs:
 
       # The runner already ships the Android SDK and build-tools.
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: sh gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
