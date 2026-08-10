@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#061318">
+<title>BLE Sonar</title>
+<meta name="color-scheme" content="dark">
+<style>
+  :root{
+    --ink:#061318;
+    --ink-2:#0a1c24;
+    --panel:rgba(12,32,41,.72);
+    --rule:#17414c;
+    --rule-soft:#102b34;
+    --teal:#35e0c8;
+    --amber:#ffb03a;
+    --coral:#ff6a5a;
+    --text:#d6f0ef;
+    --dim:#6f929b;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--ink); color:var(--text);
+    font-family:var(--mono); font-size:13px;
+    display:flex; flex-direction:column;
+    overflow:hidden;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---- header ---- */
+  header{
+    display:flex; align-items:baseline; gap:10px;
+    padding:10px 14px 8px; border-bottom:1px solid var(--rule-soft);
+    flex:0 0 auto;
+  }
+  .mark{
+    font-size:13px; font-weight:700; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--teal);
+  }
+  .sub{font-size:10px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase}
+  .spacer{flex:1}
+  .iconbtn{
+    background:none; border:1px solid var(--rule); color:var(--dim);
+    width:26px; height:26px; border-radius:50%; font-family:var(--mono);
+    font-size:12px; cursor:pointer; line-height:1;
+  }
+  .iconbtn:hover{color:var(--teal); border-color:var(--teal)}
+
+  /* ---- radar ---- */
+  .scope{position:relative; flex:1 1 auto; min-height:0}
+  canvas{display:block; width:100%; height:100%; touch-action:manipulation}
+  .overlay{
+    position:absolute; inset:0; pointer-events:none;
+    display:flex; flex-direction:column; justify-content:space-between;
+    padding:12px 14px;
+  }
+  .corner{display:flex; justify-content:space-between; font-size:10px; letter-spacing:.1em; color:var(--dim)}
+  .corner b{color:var(--text); font-weight:600}
+  .simtag{
+    color:var(--amber); border:1px solid var(--amber); padding:1px 6px;
+    letter-spacing:.18em; font-size:9px;
+  }
+  .empty{
+    position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+    text-align:center; color:var(--dim); font-size:11px; line-height:1.9;
+    letter-spacing:.06em; padding:0 32px;
+  }
+  .empty strong{display:block; color:var(--teal); letter-spacing:.2em; font-size:11px; margin-bottom:6px}
+
+  /* ---- controls ---- */
+  .bar{
+    flex:0 0 auto; display:flex; gap:8px; padding:10px 12px;
+    border-top:1px solid var(--rule-soft); background:var(--ink-2);
+  }
+  button.act{
+    flex:1; padding:12px 8px; background:transparent; color:var(--teal);
+    border:1px solid var(--teal); font-family:var(--mono); font-size:12px;
+    letter-spacing:.16em; text-transform:uppercase; cursor:pointer; border-radius:2px;
+  }
+  button.act:active{background:rgba(53,224,200,.14)}
+  button.act[data-on="1"]{background:var(--teal); color:var(--ink); font-weight:700}
+  button.ghost{flex:0 0 auto; color:var(--dim); border-color:var(--rule); padding:12px 14px}
+  button.ghost[data-on="1"]{background:var(--amber); border-color:var(--amber); color:var(--ink); font-weight:700}
+  button:focus-visible{outline:2px solid var(--amber); outline-offset:2px}
+
+  /* ---- contact list ---- */
+  .list{
+    flex:0 0 auto; max-height:34vh; overflow-y:auto; border-top:1px solid var(--rule-soft);
+    background:linear-gradient(180deg,#08171e,#061318);
+  }
+  .row{
+    display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; align-items:center;
+    padding:9px 14px; border-bottom:1px solid var(--rule-soft); cursor:pointer;
+  }
+  .row[data-sel="1"]{background:rgba(53,224,200,.09)}
+  .dot{width:8px; height:8px; border-radius:50%; box-shadow:0 0 8px currentColor; background:currentColor}
+  .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px}
+  .nm small{display:block; color:var(--dim); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase}
+  .dist{font-size:12px; font-variant-numeric:tabular-nums; text-align:right}
+  .dist small{display:block; color:var(--dim); font-size:9.5px}
+  .trend{width:22px; text-align:center; font-size:13px; font-weight:700}
+  .t-near{color:var(--coral)} .t-far{color:#4b7f8c} .t-hold{color:var(--dim)}
+
+  /* ---- info sheet ---- */
+  .sheet{
+    position:fixed; inset:0; background:rgba(3,10,13,.92); z-index:20;
+    display:none; overflow-y:auto; padding:26px 20px 40px;
+  }
+  .sheet[data-open="1"]{display:block}
+  .sheet h2{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--teal); margin:0 0 14px}
+  .sheet h3{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--amber); margin:22px 0 8px}
+  .sheet p, .sheet li{font-size:12px; line-height:1.75; color:#a9c9c9; margin:0 0 8px}
+  .sheet ul{padding-left:16px; margin:0}
+  .sheet code{color:var(--teal); font-size:11px}
+  .close{
+    position:sticky; top:0; float:right; background:var(--ink); border:1px solid var(--rule);
+    color:var(--dim); width:30px; height:30px; border-radius:50%; cursor:pointer; font-family:var(--mono);
+  }
+  .note{border-left:2px solid var(--amber); padding:8px 0 8px 12px; margin:12px 0}
+  @media (prefers-reduced-motion: reduce){ .pulse{animation:none} }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="mark">BLE Sonar</span>
+  <span class="sub" id="mode">standby</span>
+  <span class="spacer"></span>
+  <button class="iconbtn" id="info" aria-label="How this works">?</button>
+</header>
+
+<div class="scope">
+  <canvas id="scope"></canvas>
+  <div class="overlay">
+    <div class="corner">
+      <span>CONTACTS <b id="n-count">0</b></span>
+      <span id="simtag" class="simtag" hidden>SIMULATED</span>
+      <span>NEAREST <b id="n-near">—</b></span>
+    </div>
+    <div class="corner">
+      <span>RANGE <b>30 m</b> · LOG</span>
+      <span id="n-rate">0 adv/s</span>
+    </div>
+  </div>
+  <div class="empty" id="empty">
+    <strong>Scope is cold</strong>
+    Start a scan to sweep for Bluetooth LE advertisements.<br>
+    No device is contacted — this listens only.
+  </div>
+</div>
+
+<div class="bar">
+  <button class="act" id="scan">Start scan</button>
+  <button class="act ghost" id="demo">Demo</button>
+  <button class="act ghost" id="ping" aria-label="Toggle ping sound">♪</button>
+</div>
+
+<div class="list" id="list"></div>
+
+<div class="sheet" id="sheet">
+  <button class="close" id="close">✕</button>
+  <h2>How to read this scope</h2>
+  <p>This runs a native Android BLE scan in low-latency mode and draws it here. It listens for advertisement packets — the little "I'm here" broadcasts from earbuds, watches, trackers, TVs, and phones nearby. Nothing is paired or connected to.</p>
+
+  <div class="note">
+    <p><b>Bearing is not real.</b> Bluetooth radios give signal strength, not angle. Each contact is parked at a fixed angle derived from its address so it stays put on the screen and is easy to track — but that angle tells you nothing about which way the device actually is.</p>
+  </div>
+
+  <h3>What is real</h3>
+  <ul>
+    <li><b>Radius</b> — distance estimated from RSSI via log-distance path loss, using advertised Tx power where available (default −59 dBm at 1 m, path loss exponent 2.2). Bodies, walls and pockets easily throw this off by 2–3×.</li>
+    <li><b>Colour</b> — teal is far, amber is close, coral is very close.</li>
+    <li><b>The trail</b> — the short arc behind each blip is the RSSI trend over the last few seconds. This is the honest part: walk a few steps and watch which contacts climb. Closing contacts are the ones you're walking toward.</li>
+  </ul>
+
+  <h3>Playing hot-and-cold</h3>
+  <p>Pick a contact from the list to lock it. Walk ten paces, check the trend arrow, turn if it says ▽. Triangulating by walking beats any single reading.</p>
+
+  <h3>Permissions</h3>
+  <ul>
+    <li>On Android 12 and later, only the Bluetooth scan permission is needed. The app declares <code>neverForLocation</code>, so Android does not ask for your location and none is read.</li>
+    <li>On Android 11 and earlier, the OS forces any BLE scan to hold the location permission. That is an Android rule, not a use of your position — nothing here reads GPS.</li>
+    <li>Scanning stops when the app goes to the background. Android throttles background scans hard, so a paused scope is better than a lying one.</li>
+  </ul>
+
+  <h3>Why contacts multiply</h3>
+  <p>Phones and modern trackers rotate their Bluetooth addresses every ~15 minutes for privacy. The same handset will reappear as a fresh contact. Devices that hold a static address — cheap speakers, some sensors, older gear — stay put.</p>
+
+  <h3>Demo mode</h3>
+  <p>Demo fabricates plausible contacts with drifting signal strength so the scope can be tried anywhere. It's labelled SIMULATED on screen. Nothing shown in demo is from your surroundings.</p>
+</div>
+
+<script>
+"use strict";
+
+/* ═══════════ state ═══════════ */
+const contacts = new Map();
+let scanning = false, demo = false, sim = null, scanHandle = null;
+let selected = null, pingOn = false, wakeLock = null, audioCtx = null;
+let advCount = 0, advRate = 0;
+
+const RSSI_ALPHA = 0.28;      // EMA smoothing on raw dBm
+const TX_DEFAULT = -59;       // dBm at 1 m
+const PLE = 2.2;              // path loss exponent, indoor-ish
+const D_MIN = 0.4, D_MAX = 30;
+const STALE_MS = 12000, DROP_MS = 45000;
+
+/* ═══════════ helpers ═══════════ */
+function hash32(str){
+  let h = 0x811c9dc5;
+  for (let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return h >>> 0;
+}
+function angleFor(id){ return (hash32(id) % 3600) / 3600 * Math.PI * 2; }
+function estDistance(rssi, tx){
+  return Math.pow(10, ((tx ?? TX_DEFAULT) - rssi) / (10 * PLE));
+}
+function radiusFrac(d){
+  const c = Math.min(Math.max(d, D_MIN), D_MAX);
+  return Math.log10(c / D_MIN) / Math.log10(D_MAX / D_MIN);
+}
+function colorFor(d){
+  if (d < 1.5) return '#ff6a5a';
+  if (d < 6)   return '#ffb03a';
+  return '#35e0c8';
+}
+const VENDORS = {
+  0x004C:'Apple', 0x0006:'Microsoft', 0x0075:'Samsung', 0x00E0:'Google',
+  0x000F:'Broadcom', 0x0087:'Garmin', 0x0157:'Huawei', 0x038F:'Xiaomi',
+  0x00D2:'Bose', 0x0171:'Amazon', 0x0499:'Ruuvi', 0x02E5:'Espressif',
+  0x0059:'Nordic', 0x000D:'Texas Instruments', 0x0131:'Cypress', 0x0118:'Tile'
+};
+
+/* ═══════════ contact bookkeeping ═══════════ */
+function observe(id, name, rssi, tx, vendor){
+  const now = performance.now();
+  let c = contacts.get(id);
+  if (!c){
+    c = { id, name: name || null, vendor: vendor || null, rssi, tx,
+          angle: angleFor(id), first: now, hist: [], flash: 1, fresh: 1 };
+    contacts.set(id, c);
+    if (pingOn) blip(estDistance(rssi, tx));
+    if (navigator.vibrate) navigator.vibrate(12);
+  } else {
+    c.rssi = c.rssi + (rssi - c.rssi) * RSSI_ALPHA;
+    if (name) c.name = name;
+    if (vendor) c.vendor = vendor;
+    if (tx != null) c.tx = tx;
+  }
+  c.last = now;
+  c.raw = rssi;
+  c.dist = estDistance(c.rssi, c.tx);
+  c.hist.push({ t: now, r: c.rssi });
+  while (c.hist.length && now - c.hist[0].t > 9000) c.hist.shift();
+  advCount++;
+}
+
+// dBm/second slope over the recent window. Positive = closing.
+function trendOf(c){
+  if (c.hist.length < 4) return 0;
+  const h = c.hist, n = h.length;
+  let sx=0, sy=0, sxy=0, sxx=0;
+  for (const p of h){ const x = (p.t - h[0].t)/1000; sx+=x; sy+=p.r; sxy+=x*p.r; sxx+=x*x; }
+  const den = n*sxx - sx*sx;
+  return den === 0 ? 0 : (n*sxy - sx*sy) / den;
+}
+
+function reap(){
+  const now = performance.now();
+  for (const [id,c] of contacts) if (now - c.last > DROP_MS) {
+    contacts.delete(id);
+    if (selected === id) selected = null;
+  }
+}
+
+/* ═══════════ radar draw ═══════════ */
+const cv = document.getElementById('scope'), ctx = cv.getContext('2d');
+let W=0, H=0, CX=0, CY=0, R=0, sweep=0, prevSweep=0, lastT=0;
+
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  CX = W/2; CY = H/2; R = Math.min(W,H)/2 - 26;
+}
+new ResizeObserver(resize).observe(cv);
+
+const RINGS = [1, 3, 10, 30];
+
+function draw(dt){
+  ctx.clearRect(0,0,W,H);
+
+  // field
+  const g = ctx.createRadialGradient(CX,CY,0,CX,CY,R*1.15);
+  g.addColorStop(0,'#0d2731'); g.addColorStop(1,'#050f14');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(CX,CY,R,0,7); ctx.fill();
+
+  // rings + labels
+  ctx.lineWidth = 1;
+  for (const m of RINGS){
+    const rr = R * radiusFrac(m);
+    ctx.strokeStyle = m === 30 ? '#1d515e' : '#123540';
+    ctx.beginPath(); ctx.arc(CX,CY,rr,0,7); ctx.stroke();
+    ctx.fillStyle = '#3f6a75'; ctx.font = '9px ui-monospace, monospace';
+    ctx.fillText(m + 'm', CX + 4, CY - rr - 4);
+  }
+  // crosshair
+  ctx.strokeStyle = '#0f2b34';
+  ctx.beginPath();
+  ctx.moveTo(CX-R,CY); ctx.lineTo(CX+R,CY);
+  ctx.moveTo(CX,CY-R); ctx.lineTo(CX,CY+R);
+  ctx.stroke();
+
+  const live = scanning || demo;
+
+  // sweep wedge
+  if (live){
+    prevSweep = sweep;
+    sweep = (sweep + dt * 2.5) % (Math.PI*2);   // ~2.5 s per revolution
+    const STEPS = 34, SPAN = Math.PI * 0.62;
+    for (let i=0;i<STEPS;i++){
+      const a0 = sweep - (i+1)*(SPAN/STEPS), a1 = sweep - i*(SPAN/STEPS);
+      ctx.fillStyle = `rgba(53,224,200,${0.085 * (1 - i/STEPS)})`;
+      ctx.beginPath(); ctx.moveTo(CX,CY); ctx.arc(CX,CY,R,a0,a1); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(53,224,200,.55)';
+    ctx.beginPath(); ctx.moveTo(CX,CY);
+    ctx.lineTo(CX + Math.cos(sweep)*R, CY + Math.sin(sweep)*R); ctx.stroke();
+  }
+
+  // blips
+  const now = performance.now();
+  for (const c of contacts.values()){
+    const age = now - c.last;
+    if (age > DROP_MS) continue;
+
+    // sweep crossing → flash
+    if (live){
+      let a = c.angle, p = prevSweep, s = sweep;
+      if (s < p) s += Math.PI*2;
+      if (a < p) a += Math.PI*2;
+      if (a > p && a <= s) c.flash = 1;
+    }
+    c.flash = Math.max(0, c.flash - dt*0.85);
+    c.fresh = Math.max(0, 1 - age/STALE_MS);
+
+    const rr = R * radiusFrac(c.dist);
+    const x = CX + Math.cos(c.angle)*rr, y = CY + Math.sin(c.angle)*rr;
+    const col = colorFor(c.dist);
+    const alpha = 0.22 + c.fresh*0.5 + c.flash*0.28;
+    const isSel = selected === c.id;
+
+    // trend trail — arc toward where it's heading
+    const slope = trendOf(c);
+    if (Math.abs(slope) > 0.25){
+      const target = R * radiusFrac(estDistance(c.rssi + slope*3, c.tx));
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.3 * (0.4 + c.flash);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(CX + Math.cos(c.angle)*target, CY + Math.sin(c.angle)*target);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // glow
+    ctx.globalAlpha = alpha * 0.4;
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(x,y, 9 + c.flash*9, 0, 7); ctx.fill();
+
+    // core
+    ctx.globalAlpha = Math.min(1, alpha + 0.25);
+    ctx.beginPath(); ctx.arc(x,y, isSel ? 5 : 3.4, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    if (isSel){
+      ctx.strokeStyle = col; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x,y, 12 + Math.sin(now/260)*2, 0, 7); ctx.stroke();
+    }
+    if (isSel || c.flash > 0.45 || c.dist < 2){
+      ctx.fillStyle = col; ctx.globalAlpha = isSel ? 1 : c.flash;
+      ctx.font = '9.5px ui-monospace, monospace';
+      const label = (c.name || c.vendor || 'unknown').slice(0, 16);
+      ctx.fillText(label, x + 11, y + 3);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // you
+  ctx.fillStyle = '#d6f0ef';
+  ctx.beginPath(); ctx.arc(CX,CY,3,0,7); ctx.fill();
+  if (live){
+    const p = (now % 2400)/2400;
+    ctx.strokeStyle = `rgba(214,240,239,${0.3*(1-p)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(CX,CY, 3 + p*46, 0, 7); ctx.stroke();
+  }
+}
+
+function loop(t){
+  const dt = Math.min((t - lastT)/1000 || 0, 0.05);
+  lastT = t;
+  draw(dt);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(t => { lastT = t; resize(); loop(t); });
+
+/* ═══════════ list + readouts ═══════════ */
+const listEl = document.getElementById('list');
+
+function refresh(){
+  reap();
+  const arr = [...contacts.values()].sort((a,b) => a.dist - b.dist);
+
+  document.getElementById('n-count').textContent = arr.length;
+  document.getElementById('n-near').textContent = arr.length ? arr[0].dist.toFixed(1) + ' m' : '—';
+  document.getElementById('n-rate').textContent = advRate.toFixed(1) + ' adv/s';
+  document.getElementById('empty').hidden = arr.length > 0 || scanning || demo;
+
+  listEl.innerHTML = '';
+  for (const c of arr){
+    const slope = trendOf(c);
+    const dir = slope > 0.55 ? ['▲','t-near'] : slope < -0.55 ? ['▽','t-far'] : ['·','t-hold'];
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.dataset.sel = selected === c.id ? '1' : '0';
+    row.innerHTML =
+      `<span class="dot" style="color:${colorFor(c.dist)};opacity:${0.35 + c.fresh*0.65}"></span>
+       <span class="nm">${esc(c.name || 'Unnamed device')}<small>${esc(c.vendor || 'unknown vendor')} · ${esc(c.id.slice(0,10))}</small></span>
+       <span class="dist">${c.dist < 10 ? c.dist.toFixed(1) : Math.round(c.dist)} m<small>${Math.round(c.rssi)} dBm</small></span>
+       <span class="trend ${dir[1]}">${dir[0]}</span>`;
+    row.onclick = () => { selected = selected === c.id ? null : c.id; refresh(); };
+    listEl.appendChild(row);
+  }
+}
+function esc(s){ return String(s).replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch])); }
+
+setInterval(refresh, 700);
+setInterval(() => { advRate = advRate*0.5 + advCount*0.5; advCount = 0; }, 1000);
+
+/* ═══════════ sound ═══════════ */
+function blip(dist){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = 1300 - Math.min(dist, 25) * 34;
+    o.type = 'sine';
+    g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.09, audioCtx.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.35);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.36);
+  }catch(e){}
+}
+
+/* ═══════════ scanning — native bridge, with Web Bluetooth fallback ═══════════ */
+const NATIVE = typeof window.AndroidBLE !== 'undefined';
+
+// Java pushes batches of advertisements through here every 250 ms.
+window.__ble = function(payload){
+  let arr;
+  try{ arr = JSON.parse(typeof payload === 'string' ? payload : '[]'); }
+  catch(e){ return; }
+  if (!Array.isArray(arr)) arr = [arr];
+  for (const a of arr){
+    const vendor = a.cid != null
+      ? (VENDORS[a.cid] || ('ID 0x' + a.cid.toString(16).padStart(4,'0')))
+      : null;
+    observe(a.id, a.name || null, a.rssi, a.tx != null ? a.tx : null, vendor);
+  }
+};
+window.__bleStarted = function(){
+  scanning = true;
+  markScan(true);
+  document.getElementById('mode').textContent = 'sweeping';
+  document.getElementById('empty').hidden = true;
+};
+window.__bleStopped = function(){ scanning = false; markScan(false); };
+window.__bleStatus  = function(msg){ scanning = false; markScan(false); fail(msg); };
+
+function markScan(on){
+  const b = document.getElementById('scan');
+  b.textContent = on ? 'Stop scan' : 'Start scan';
+  b.dataset.on = on ? '1' : '0';
+  document.getElementById('mode').textContent = on ? 'sweeping' : (demo ? 'demo' : 'standby');
+}
+
+async function startScan(){
+  const status = document.getElementById('mode');
+
+  if (NATIVE){
+    status.textContent = 'starting';
+    window.AndroidBLE.start();      // Java answers via __bleStarted / __bleStatus
+    return;
+  }
+
+  if (!navigator.bluetooth){
+    status.textContent = 'no web bluetooth';
+    fail('This browser has no Web Bluetooth. Use Chrome or Edge on Android, ChromeOS, or desktop.');
+    return;
+  }
+  if (!navigator.bluetooth.requestLEScan){
+    status.textContent = 'scanning unavailable';
+    fail('Continuous scanning is missing. Enable chrome://flags/#enable-experimental-web-platform-features and restart the browser.');
+    return;
+  }
+  try{
+    scanHandle = await navigator.bluetooth.requestLEScan({
+      acceptAllAdvertisements: true, keepRepeatedDevices: true
+    });
+  }catch(err){
+    status.textContent = 'scan refused';
+    fail(err.name === 'NotAllowedError'
+      ? 'Permission denied. Grant Bluetooth access and open this page in its own tab.'
+      : 'Scan could not start: ' + err.message);
+    return;
+  }
+  navigator.bluetooth.addEventListener('advertisementreceived', onAdv);
+  scanning = true;
+  markScan(true);
+  try{ wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
+}
+
+function onAdv(e){
+  let vendor = null;
+  if (e.manufacturerData) for (const k of e.manufacturerData.keys()){
+    vendor = VENDORS[k] || ('ID 0x' + k.toString(16).padStart(4,'0')); break;
+  }
+  observe(e.device.id, e.device.name || e.name, e.rssi, e.txPower, vendor);
+}
+
+async function stopScan(){
+  if (NATIVE){ window.AndroidBLE.stop(); markScan(false); scanning = false; return; }
+  if (scanHandle){ try{ scanHandle.stop(); }catch(e){} scanHandle = null; }
+  navigator.bluetooth?.removeEventListener?.('advertisementreceived', onAdv);
+  scanning = false;
+  markScan(false);
+  if (wakeLock){ try{ await wakeLock.release(); }catch(e){} wakeLock = null; }
+}
+
+function fail(msg){
+  const el = document.getElementById('empty');
+  el.hidden = false;
+  el.innerHTML = `<strong>Scan blocked</strong>${esc(msg)}<br><br>Demo mode still works.`;
+}
+
+/* ═══════════ demo ═══════════ */
+const FAKES = [
+  ['AirPods Pro','Apple',-52], ['Galaxy Watch6','Samsung',-71], ['JBL Flip 6',null,-66],
+  ['Tile Mate','Tile',-84], [null,'Apple',-59], ['LG TV','LG Electronics',-78],
+  [null,'Espressif',-88], ['Mi Band 8','Xiaomi',-63], [null,'Microsoft',-74],
+  ['Bose QC','Bose',-69]
+];
+function startDemo(){
+  demo = true;
+  document.getElementById('demo').dataset.on = '1';
+  document.getElementById('simtag').hidden = false;
+  document.getElementById('mode').textContent = 'demo';
+  document.getElementById('empty').hidden = true;
+
+  const seeds = FAKES.map((f,i) => ({
+    id: 'sim-' + i + '-' + hash32(f[0]||'x'+i).toString(16),
+    name: f[0], vendor: f[1], base: f[2], phase: Math.random()*7,
+    drift: (Math.random()-0.5) * 0.8
+  }));
+
+  sim = setInterval(() => {
+    const t = performance.now()/1000;
+    for (const s of seeds){
+      if (Math.random() > 0.55) continue;               // irregular adv intervals
+      s.base += s.drift * 0.35;
+      if (s.base > -45 || s.base < -95) s.drift *= -1;
+      const r = s.base + Math.sin(t*0.6 + s.phase)*3 + (Math.random()-0.5)*4;
+      observe(s.id, s.name, Math.round(r), null, s.vendor);
+    }
+  }, 380);
+}
+function stopDemo(){
+  demo = false;
+  clearInterval(sim); sim = null;
+  document.getElementById('demo').dataset.on = '0';
+  document.getElementById('simtag').hidden = true;
+  document.getElementById('mode').textContent = scanning ? 'sweeping' : 'standby';
+  for (const [id,c] of contacts) if (id.startsWith('sim-')) contacts.delete(id);
+  selected = null;
+  refresh();
+}
+
+/* ═══════════ wiring ═══════════ */
+document.getElementById('scan').onclick = () => scanning ? stopScan() : startScan();
+document.getElementById('demo').onclick = () => demo ? stopDemo() : startDemo();
+document.getElementById('ping').onclick = e => {
+  pingOn = !pingOn;
+  e.currentTarget.dataset.on = pingOn ? '1' : '0';
+  if (pingOn) blip(5);
+};
+document.getElementById('info').onclick = () => document.getElementById('sheet').dataset.open = '1';
+document.getElementById('close').onclick = () => document.getElementById('sheet').dataset.open = '0';
+
+// tap the scope to select the nearest blip to the touch point
+cv.onclick = ev => {
+  const r = cv.getBoundingClientRect();
+  const px = ev.clientX - r.left, py = ev.clientY - r.top;
+  let best = null, bd = 26;
+  for (const c of contacts.values()){
+    const rr = R * radiusFrac(c.dist);
+    const d = Math.hypot(CX + Math.cos(c.angle)*rr - px, CY + Math.sin(c.angle)*rr - py);
+    if (d < bd){ bd = d; best = c.id; }
+  }
+  selected = best === selected ? null : best;
+  refresh();
+};
+
+// re-acquire the wake lock after the screen comes back
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && scanning && !wakeLock){
+    try{ wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
+  }
+});
+
+refresh();
+</script>
+</body>
+</html>

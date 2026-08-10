@@ -1,0 +1,31 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'nl.tunc.blesonar'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "nl.tunc.blesonar"
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug   // so `assembleRelease` also produces an installable APK
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        encoding = "UTF-8"
+    }
+}
+
+// No dependencies at all — plain android.app.Activity, no AndroidX, no support library.
+dependencies { }

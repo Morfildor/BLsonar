@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+
+    <!-- range rings -->
+    <path android:strokeColor="#1E6B78" android:strokeWidth="1.6" android:fillColor="#00000000"
+        android:pathData="M54,20 a34,34 0 1,0 0.1,0" />
+    <path android:strokeColor="#1E6B78" android:strokeWidth="1.4" android:fillColor="#00000000"
+        android:pathData="M54,32 a22,22 0 1,0 0.1,0" />
+    <path android:strokeColor="#1E6B78" android:strokeWidth="1.2" android:fillColor="#00000000"
+        android:pathData="M54,43 a11,11 0 1,0 0.1,0" />
+
+    <!-- sweep wedge -->
+    <path android:fillColor="#3335E0C8" android:pathData="M54,54 L54,20 A34,34 0 0,1 83,37 Z" />
+    <path android:strokeColor="#35E0C8" android:strokeWidth="2" android:pathData="M54,54 L83,37" />
+
+    <!-- contacts -->
+    <path android:fillColor="#FFB03A" android:pathData="M69,45 m-3.4,0 a3.4,3.4 0 1,0 6.8,0 a3.4,3.4 0 1,0 -6.8,0" />
+    <path android:fillColor="#FF6A5A" android:pathData="M45,64 m-2.8,0 a2.8,2.8 0 1,0 5.6,0 a2.8,2.8 0 1,0 -5.6,0" />
+    <path android:fillColor="#35E0C8" android:pathData="M35,40 m-2.2,0 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+
+    <!-- you -->
+    <path android:fillColor="#D6F0EF" android:pathData="M54,54 m-2.6,0 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0" />
+</vector>
